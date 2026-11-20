@@ -1,0 +1,36 @@
+# Deployment über Coolify (Build Pack "Docker Compose" aus diesem Repo).
+# Der Runner bekommt keine Domain und hängt nur im Docker-Netz der n8n-Instanz "My Documents".
+# n8n erreicht ihn dort als http://browser-runner:8080 (wie Gotenberg als http://gotenberg:3000).
+services:
+  browser-runner:
+    build: .
+    restart: unless-stopped
+    environment:
+      - RUNNER_API_TOKEN=${RUNNER_API_TOKEN}
+      - ADDISON_USERNAME=${ADDISON_USERNAME}
+      - ADDISON_PASSWORD=${ADDISON_PASSWORD}
+      - ADDISON_TENANT=${ADDISON_TENANT:-Choice AG}
+      - TRACE_ALWAYS=${TRACE_ALWAYS:-false}
+      - TRACE_RETENTION_DAYS=${TRACE_RETENTION_DAYS:-14}
+    volumes:
+      - runner-data:/data
+    shm_size: 1gb
+    networks:
+      default:
+      n8n:
+        aliases:
+          - browser-runner
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+
+volumes:
+  runner-data:
+
+networks:
+  n8n:
+    external: true
+    # Docker-Netz des Coolify-Service "n8n" (Projekt My Documents)
+    name: ${N8N_NETWORK:-eg0cccs88wowc804s8gsc4ws}

@@ -1,0 +1,26 @@
+{
+  "name": "my-documents-browser-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministische Browser-Automatisierung (Playwright) für Portale ohne API – gesteuert per HTTP aus n8n.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "HEADLESS=false DATA_DIR=./data tsx watch src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "trace": "playwright show-trace"
+  },
+  "dependencies": {
+    "fastify": "5.12.8",
+    "playwright": "1.65.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
