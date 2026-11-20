@@ -6,7 +6,7 @@
  * Beim 2FA-Schritt wird "Diesen Browser merken" angehakt; das Cookie liegt im persistenten Profil.
  */
 import { readFile } from 'node:fs/promises';
-import type { Page } from 'playwright';
+import type { Locator, Page } from 'playwright';
 import { portalEnv } from '../config.js';
 import { PortalBrowser, PortalError, escapeRegExp, firstState } from '../browser.js';
 
@@ -39,8 +39,26 @@ const ui = {
       .getByRole('gridcell')
       .filter({ hasText: new RegExp(`^[^\\p{L}\\p{N}]*${escapeRegExp(name)}\\s*$`, 'u') })
       .first(),
-  downloadButton: (p: Page) => p.getByRole('button', { name: 'Herunterladen', exact: true }),
+  downloadButtons: (p: Page) => p.getByRole('button', { name: 'Dokument herunterladen', exact: true }),
 };
+
+/** Findet den "Dokument herunterladen"-Button in derselben Grid-Zeile wie die Namenszelle. */
+async function downloadButtonFor(page: Page, cell: Locator): Promise<Locator> {
+  const row = cell.locator('xpath=ancestor::*[@role="row"][1]');
+  const rowIndex = await row.getAttribute('row-index');
+  if (rowIndex !== null) {
+    const button = page
+      .locator(`[role="row"][row-index="${rowIndex}"]`)
+      .getByRole('button', { name: 'Dokument herunterladen', exact: true });
+    if ((await button.count()) === 1) return button;
+  }
+  // Fallback: gleiche Position in der Reihenfolge der Zeilen
+  const names = await ui.documentCells(page).allInnerTexts();
+  const target = cleanName(await cell.innerText());
+  const position = names.map(cleanName).indexOf(target);
+  if (position < 0) throw new PortalError(`Zeile für "${target}" nicht gefunden`, 404, 'DOCUMENT_NOT_FOUND');
+  return ui.downloadButtons(page).nth(position);
+}
 
 type LoginResult = { status: 'ok' } | { status: '2fa_required'; requestedAt: string };
 
@@ -177,12 +195,14 @@ export async function downloadDocument(name: string) {
     if ((await cell.count()) === 0) {
       throw new PortalError(`Dokument "${name}" nicht gefunden`, 404, 'DOCUMENT_NOT_FOUND');
     }
-    await cell.click();
+    // Die Liste ist ein Grid mit fixierten Spalten: Name links, Aktionen rechts in einem eigenen
+    // Zeilenblock. Beide Blöcke teilen sich die Zeilennummer (row-index) bzw. die Reihenfolge.
+    const button = await downloadButtonFor(page, cell);
     // Klick und Download-Event gemeinsam abwarten – sonst bleibt bei einem Klick-Fehler
     // ein unbehandeltes waitForEvent-Promise zurück.
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 60_000 }),
-      ui.downloadButton(page).click(),
+      button.click(),
     ]);
     const content = await readFile(await download.path());
     await download.delete();

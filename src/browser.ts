@@ -25,9 +25,26 @@ async function capturePage(page: Page) {
   const snapshot = await page
     .locator('body')
     .ariaSnapshot({ timeout: 5_000 })
-    .then((s) => (s.length > 20_000 ? `${s.slice(0, 20_000)}\n…(gekürzt)` : s))
+    .then(redactSnapshot)
     .catch(() => undefined);
   return { url, snapshot };
+}
+
+/**
+ * Lange Textknoten (z. B. Textebene einer geöffneten Lohnabrechnung im PDF-Viewer) werden
+ * entfernt – der Snapshot soll Struktur und Bedienelemente zeigen, keine Dokumentinhalte.
+ */
+export function redactSnapshot(snapshot: string): string {
+  const MAX_LINE = 160;
+  const redacted = snapshot
+    .split('\n')
+    .map((line) =>
+      line.length > MAX_LINE
+        ? `${line.slice(0, line.indexOf(':') + 1 || 40)} «${line.length} Zeichen entfernt»`
+        : line,
+    )
+    .join('\n');
+  return redacted.length > 20_000 ? `${redacted.slice(0, 20_000)}\n…(gekürzt)` : redacted;
 }
 
 export const tracesDir = () => path.join(config.dataDir, 'traces');
