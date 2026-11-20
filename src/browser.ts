@@ -13,6 +13,21 @@ export class PortalError extends Error {
   ) {
     super(message);
   }
+
+  /** Seitenzustand beim Fehler (URL + Accessibility-Baum), wenn DEBUG_SNAPSHOT aktiv ist. */
+  page?: { url: string; snapshot?: string };
+}
+
+/** URL + ARIA-Snapshot der aktuellen Seite – zeigt Rollen/Namen, also genau das, was Locators sehen. */
+async function capturePage(page: Page) {
+  if (!config.debugSnapshot) return undefined;
+  const url = page.url();
+  const snapshot = await page
+    .locator('body')
+    .ariaSnapshot({ timeout: 5_000 })
+    .then((s) => (s.length > 20_000 ? `${s.slice(0, 20_000)}\n…(gekürzt)` : s))
+    .catch(() => undefined);
+  return { url, snapshot };
 }
 
 export const tracesDir = () => path.join(config.dataDir, 'traces');
@@ -49,12 +64,14 @@ export class PortalBrowser {
     try {
       result = await fn(page);
     } catch (err) {
+      const pageState = await capturePage(page);
       const trace = await this.stopTrace(action, 'error');
       const error =
         err instanceof PortalError
           ? err
           : new PortalError(err instanceof Error ? err.message : String(err));
       error.trace = trace;
+      error.page = pageState;
       this.scheduleIdleClose();
       throw error;
     }

@@ -81,8 +81,18 @@ async function ensureLoggedIn(page: Page): Promise<LoginResult> {
 
 async function openTenant(page: Page) {
   if (!page.url().startsWith(dashboardUrl)) await page.goto(dashboardUrl);
-  await ui.tenantTile(page).click();
-  await ui.documentCells(page).first().waitFor();
+  // Entweder sind die Dokumente schon sichtbar (Mandant aktiv) oder die Mandanten-Kachel muss geklickt werden.
+  const state = await firstState(
+    {
+      documents: ui.documentCells(page).first().waitFor({ timeout: 20_000 }),
+      tenantTile: ui.tenantTile(page).waitFor({ timeout: 20_000 }),
+    },
+    `weder Dokumentliste noch Mandant "${tenant}" gefunden`,
+  );
+  if (state === 'tenantTile') {
+    await ui.tenantTile(page).click();
+    await ui.documentCells(page).first().waitFor();
+  }
 }
 
 const cleanName = (text: string) => text.replace(/^[^\p{L}\p{N}]+/u, '').trim();

@@ -26,8 +26,9 @@ app.setErrorHandler((error, request, reply) => {
   return reply.code(status).send({
     status: 'error',
     code: err.code ?? 'INTERNAL_ERROR',
-    message: err.message,
+    message: err.message.replace(/\u001b\[\d+m/g, ''),
     trace: err.trace ?? null,
+    page: err.page ?? null,
   });
 });
 

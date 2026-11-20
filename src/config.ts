@@ -19,6 +19,8 @@ export const config = {
   idleCloseMs: Number(process.env.IDLE_CLOSE_MS ?? 5 * 60_000),
   /** Traces auch bei erfolgreichen Läufen speichern (sonst nur bei Fehlern). */
   traceAlways: process.env.TRACE_ALWAYS === 'true',
+  /** Bei Fehlern URL + ARIA-Snapshot der Seite in der Antwort mitliefern (Standard: an). */
+  debugSnapshot: process.env.DEBUG_SNAPSHOT !== 'false',
   /** Traces älter als so viele Tage werden beim Start gelöscht. */
   traceRetentionDays: Number(process.env.TRACE_RETENTION_DAYS ?? 14),
 };
