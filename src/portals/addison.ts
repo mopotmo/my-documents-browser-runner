@@ -28,6 +28,7 @@ const ui = {
   loginButton: (p: Page) => p.getByRole('button', { name: 'Anmelden' }),
   code: (p: Page) => p.getByRole('textbox', { name: 'Sicherheitscode' }),
   rememberBrowser: (p: Page) => p.getByRole('checkbox', { name: 'Diesen Browser merken' }),
+  rememberBrowserLabel: (p: Page) => p.getByText('Diesen Browser merken', { exact: true }).first(),
   sendCode: (p: Page) => p.getByRole('button', { name: 'Senden', exact: true }),
   tenantTile: (p: Page) =>
     p.locator('div').filter({ hasText: new RegExp(`^${escapeRegExp(tenant)}$`) }).first(),
@@ -132,7 +133,13 @@ export async function submitCode(code: string) {
       );
     }
     await ui.code(page).fill(code.trim());
-    await ui.rememberBrowser(page).check();
+    // Die Checkbox ist gestylt: Das Label-<span> liegt über dem <input> und fängt Klicks ab.
+    if (!(await ui.rememberBrowser(page).isChecked())) {
+      await ui.rememberBrowserLabel(page).click();
+    }
+    if (!(await ui.rememberBrowser(page).isChecked())) {
+      await ui.rememberBrowser(page).check({ force: true });
+    }
     await ui.sendCode(page).click();
     await ui.code(page)
       .waitFor({ state: 'hidden', timeout: 20_000 })
