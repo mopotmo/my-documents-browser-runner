@@ -43,14 +43,29 @@ const ui = {
 
 type LoginResult = { status: 'ok' } | { status: '2fa_required'; requestedAt: string };
 
-function detectLoginState(page: Page, timeout = 30_000) {
-  return firstState(
-    {
-      app: ui.tenantName(page).waitFor({ timeout }),
-      login: ui.username(page).waitFor({ timeout }),
-      twoFactor: ui.code(page).waitFor({ timeout }),
-    },
-    'weder Login-Formular, 2FA-Abfrage noch Portal sichtbar',
+const portalHost = new URL(portalUrl).host;
+
+/**
+ * Login und 2FA laufen auf services.portal-bereich.de, das Portal selbst auf `portalHost`.
+ * Achtung: Die Login-Seite zeigt im Banner ebenfalls den Mandantennamen – "eingeloggt" gilt daher
+ * nur, wenn wir auf dem Portal-Host sind und das zwei Prüfungen hintereinander so bleibt
+ * (die SPA leitet sonst noch kurz nach dem Laden zum Login weiter).
+ */
+async function detectLoginState(page: Page, timeout = 30_000): Promise<'app' | 'login' | 'twoFactor'> {
+  const deadline = Date.now() + timeout;
+  let appSeen = 0;
+  while (Date.now() < deadline) {
+    if (await ui.code(page).isVisible()) return 'twoFactor';
+    if (await ui.username(page).isVisible()) return 'login';
+    const onPortal = new URL(page.url()).host === portalHost;
+    appSeen = onPortal && (await ui.tenantName(page).isVisible()) ? appSeen + 1 : 0;
+    if (appSeen >= 2) return 'app';
+    await page.waitForTimeout(1_000);
+  }
+  throw new PortalError(
+    'Seitenzustand nicht erkannt: weder Login-Formular, 2FA-Abfrage noch Portal sichtbar',
+    502,
+    'UNKNOWN_STATE',
   );
 }
 
@@ -125,7 +140,10 @@ export async function submitCode(code: string) {
         throw new PortalError('2FA-Code abgelehnt oder abgelaufen', 401, 'CODE_REJECTED');
       });
     await page.goto(dashboardUrl);
-    await ui.tenantName(page).waitFor();
+    const state = await detectLoginState(page);
+    if (state !== 'app') {
+      throw new PortalError(`Nach 2FA nicht im Portal (Zustand: ${state})`, 502, 'UNEXPECTED_STATE');
+    }
     return { status: 'ok' as const };
   });
 }
