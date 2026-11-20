@@ -178,9 +178,12 @@ export async function downloadDocument(name: string) {
       throw new PortalError(`Dokument "${name}" nicht gefunden`, 404, 'DOCUMENT_NOT_FOUND');
     }
     await cell.click();
-    const downloadPromise = page.waitForEvent('download');
-    await ui.downloadButton(page).click();
-    const download = await downloadPromise;
+    // Klick und Download-Event gemeinsam abwarten – sonst bleibt bei einem Klick-Fehler
+    // ein unbehandeltes waitForEvent-Promise zurück.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      ui.downloadButton(page).click(),
+    ]);
     const content = await readFile(await download.path());
     await download.delete();
     return {

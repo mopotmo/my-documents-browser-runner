@@ -80,6 +80,11 @@ app.get<{ Params: { file: string } }>('/traces/:file', async (request, reply) =>
 });
 
 // --- Start / Stop --------------------------------------------------------------------------
+// Ein vergessenes Playwright-Promise darf nie den ganzen Runner abschießen.
+process.on('unhandledRejection', (reason) => {
+  app.log.error({ err: reason }, 'Unbehandelte Promise-Ablehnung');
+});
+
 await pruneTraces();
 await app.listen({ host: '0.0.0.0', port: config.port });
 
